@@ -23,9 +23,9 @@ trait HeapProperties(val heapInterface: HeapInterface):
     "delete minumum of heap of one element should return an empty heap" ->
     forAll { (x: Int) =>
       // create a heap with exactly one element, `x`
-      val heap1: List[Node] = ???
+      val heap1: List[Node] = insert(x, empty)
       // delete the minimal element from it
-      val heap0: List[Node] = ???
+      val heap0: List[Node] = deleteMin(heap1)
       // check that heap0 is empty
       isEmpty(heap0)
     }
@@ -35,9 +35,9 @@ trait HeapProperties(val heapInterface: HeapInterface):
     forAll(generatedHeap.suchThat(heap => !isEmpty(heap))) { (heap: List[Node]) =>
       // find the miniminal element of the heap
       // (you don’t need to handle the case of empty heaps because it has been excluded from the heap generator)
-      val min: Int = ???
+      val min: Int = findMin(heap)
       // insert the minimal element to the heap
-      val updatedHeap: List[Node] = ???
+      val updatedHeap: List[Node] = insert(min, heap)
       // find the minimal element of the updated heap should return the same minimal element
       findMin(updatedHeap) == min
     }
@@ -51,16 +51,17 @@ trait HeapProperties(val heapInterface: HeapInterface):
         true
       else
         // find the minimal element
-        val x1: Int = ???
+        val x1: Int = findMin(heap)
         // delete the minimal element of `heap`
-        val heap2: List[Node] = ???
+        val heap2: List[Node] = deleteMin(heap)
         // find the minimal element in `heap2`
-        val x2: Int = ???
+        val x2: Int = findMin(heap2)
         // check that the deleted element is less than or equal to the
         // minimal element of the remaining heap, and that the remaining
         // heap verifies the same property (by recursively calling `check`)
-        val checked: Boolean = ???
-        checked
+        val checked: Boolean = x1 <= x2
+        checked && check(heap2)
+
     // check arbitrary heaps
     "continually finding and deleting the minimal element of a heap should return a sorted sequence" ->
     forAll { (heap: List[Node]) =>
@@ -73,19 +74,25 @@ trait HeapProperties(val heapInterface: HeapInterface):
       // create two heaps:
       // - the first has two duplicate elements inserted, where both are equal to the
       //   highest value among `x` and `y`
+      val maxVal = if x > y then x else y
+      val heapH = insert(maxVal, insert(maxVal, empty))
       // - the second also has two duplicate elements insterted, where both are equal
       //   to the lowest value among `x` and `y`
+      val minVal = if x > y then y else x
+      val heapL = insert(minVal, insert(maxVal, empty))
       // finally, meld both heaps.
-      val meldedHeap: List[Node] = ???
+      val meldedHeap: List[Node] = meld(heapH, heapL)
       // check that deleting the minimal element twice in a row from the melded heap,
       // and then finding the minimal element in the resulting heap returns the
       // highest value
       val deleteTwoMinAndFindMin: Boolean =
-        ???
+        val heap1 = deleteMin(deleteMin(meldedHeap))
+        maxVal == findMin(heap1)
       // check that inserting the lowest value to the melded heap, and then
       // finding the minimal element returns the lowest value
       val insertMinAndFindMin: Boolean =
-        ???
+        val heap2 = insert(minVal, meldedHeap)
+        minVal == findMin(heap2)
       // check that both conditions are fulfilled
       deleteTwoMinAndFindMin && insertMinAndFindMin
     }
@@ -117,7 +124,11 @@ trait HeapProperties(val heapInterface: HeapInterface):
   val meldingHeaps: (String, Prop) =
     "finding the minimum of melding any two heaps should return the minimum of one or the other of the source heaps" ->
     forAll { (heap1: List[Node], heap2: List[Node]) =>
-      ???
+      val firstMin = findMin(heap1)
+      val secondMin = findMin(heap2)
+      val meldedHeap = meld(heap1, heap2)
+      val meldedMin = findMin(meldedHeap)
+      meldedMin == Math.min(firstMin, secondMin)
     }
 
   // Random heap generator (used by Scalacheck)
