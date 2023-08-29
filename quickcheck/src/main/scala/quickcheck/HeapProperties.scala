@@ -79,7 +79,7 @@ trait HeapProperties(val heapInterface: HeapInterface):
       // - the second also has two duplicate elements insterted, where both are equal
       //   to the lowest value among `x` and `y`
       val minVal = if x > y then y else x
-      val heapL = insert(minVal, insert(maxVal, empty))
+      val heapL = insert(minVal, insert(minVal, empty))
       // finally, meld both heaps.
       val meldedHeap: List[Node] = meld(heapH, heapL)
       // check that deleting the minimal element twice in a row from the melded heap,
@@ -124,11 +124,19 @@ trait HeapProperties(val heapInterface: HeapInterface):
   val meldingHeaps: (String, Prop) =
     "finding the minimum of melding any two heaps should return the minimum of one or the other of the source heaps" ->
     forAll { (heap1: List[Node], heap2: List[Node]) =>
-      val firstMin = findMin(heap1)
-      val secondMin = findMin(heap2)
+      def helper(heap1: List[Node], heap2: List[Node], meldedHeap: List[Node]): Boolean = {
+        if meldedHeap.isEmpty then true
+        else if !heap1.isEmpty && findMin(meldedHeap) == findMin(heap1) then
+          helper(deleteMin(heap1), heap2, deleteMin(meldedHeap))
+        else if !heap2.isEmpty && findMin(meldedHeap) == findMin(heap2) then
+          helper(heap1, deleteMin(heap2), deleteMin(meldedHeap))
+        else
+          false
+      }
+
       val meldedHeap = meld(heap1, heap2)
-      val meldedMin = findMin(meldedHeap)
-      meldedMin == Math.min(firstMin, secondMin)
+      helper(heap1, heap2, meldedHeap)
+
     }
 
   // Random heap generator (used by Scalacheck)
