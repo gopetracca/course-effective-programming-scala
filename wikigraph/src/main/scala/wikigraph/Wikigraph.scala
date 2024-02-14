@@ -26,7 +26,11 @@ final class Wikigraph(client: Wikipedia):
     * return a `Set`. Remember that you can use `.toSeq` and `.toSet`.
     */
   def namedLinks(of: ArticleId): WikiResult[Set[String]] =
-    ???
+    client
+      .linksFrom(of)
+      .map(res => res.toSeq)
+      .flatMap(WikiResult.traverse(_)(client.nameOfArticle))
+      .map(_.toSet)
 
   /**
     * Computes the distance between two pages using breadth first search.
@@ -81,8 +85,24 @@ final class Wikigraph(client: Wikipedia):
       *       including the failed node. Refer to the documentation of [[wikigraph.WikiResult#fallbackTo]].
       */
     def iter(visited: Set[ArticleId], q: Queue[(Int, ArticleId)]): WikiResult[Option[Int]] =
-      ???
+      if q.isEmpty then WikiResult.successful(None)
+      else
+        val ((distance, articleId), remainingQ) = q.dequeue
+        if (distance >= maxDepth) then WikiResult.successful(None)
+        else
+          client
+            .linksFrom(articleId)
+            .flatMap { articleIds =>
+              if articleIds.contains(target) then WikiResult.successful(Some(distance))
+              else
+                val toVisit = (articleIds -- visited).map((distance + 1, _))
+                iter(visited + articleId, remainingQ.enqueueAll(toVisit))
+            }
+            .fallbackTo(iter(visited + articleId, remainingQ))
     end iter
+            
+    if start == target then WikiResult.successful(Some(0))
+    else iter(Set(start), Queue(1 -> start))
     if start == target then
       // The start node is the one we are looking for: the search succeeds with
       // a distance of 0.
@@ -121,5 +141,18 @@ final class Wikigraph(client: Wikipedia):
     *       `breadthFirstSearch`
     */
   def distanceMatrix(titles: List[String], maxDepth: Int = 50): WikiResult[Seq[(String, String, Option[Int])]] =
-    ???
+    val allArticlePairs = for {
+      sourceArticle <- titles
+      distArticle <- titles
+      if sourceArticle != distArticle
+    } yield (sourceArticle, distArticle)
+
+    WikiResult.traverse[(String, String), (String, String, Option[Int])](allArticlePairs) { (sourceTitle, distTitle) =>
+      client.searchId(sourceTitle).zip(client.searchId(distTitle)).flatMap { (sourceId, distId) =>
+        breadthFirstSearch(sourceId, distId, maxDepth).flatMap { distance =>
+          WikiResult.successful(sourceTitle, distTitle, distance)
+        }
+      }
+    }
+  end distanceMatrix
 end Wikigraph

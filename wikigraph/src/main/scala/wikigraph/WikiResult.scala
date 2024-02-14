@@ -56,7 +56,12 @@ case class WikiResult[A](value: Future[Either[Seq[WikiError], A]]):
     * Hint: Both Either and Future have a similar method
     */
   def map[B](f: A => B)(using ExecutionContext): WikiResult[B] =
-    ???
+    val res = this.value.map { thisEither =>
+      thisEither match
+        case Left(value) => Left(value)
+        case Right(value) => Right(f(value))
+    }
+    WikiResult(res)
 
   /**
     * Use the result of this computation as an input for another asynchronous
@@ -68,8 +73,9 @@ case class WikiResult[A](value: Future[Either[Seq[WikiError], A]]):
     *       error should be propagated
     */
   def flatMap[B](f: A => WikiResult[B])(using ExecutionContext): WikiResult[B] = 
-    val futureB: Future[Either[Seq[WikiError], B]] = value.flatMap {
-      ???
+    val futureB: Future[Either[Seq[WikiError], B]] = value.flatMap { 
+        case Left(error) => Future.successful[Either[Seq[WikiError], B]](Left(error))
+        case Right(wiki) => f(wiki).value
     }
     WikiResult(futureB)
 
@@ -84,7 +90,13 @@ case class WikiResult[A](value: Future[Either[Seq[WikiError], A]]):
     */
   def zip[B](that: WikiResult[B])(using ExecutionContext): WikiResult[(A, B)] =
     def zipEithersAcc(a: Either[Seq[WikiError], A], b: Either[Seq[WikiError], B]): Either[Seq[WikiError], (A, B)] =
-      ???
+      (a, b) match {
+        case (Right(correct1), Right(correct2)) => Right(correct1, correct2)
+        case (Right(_), Left(error)) => Left(error)
+        case (Left(error), Right(_)) => Left(error)
+        case (Left(error1), Left(error2)) => Left(error1 ++ error2)
+      }
+
     WikiResult(this.value.flatMap { thisEither =>
       that.value.map { thatEither =>
         zipEithersAcc(thisEither, thatEither)
@@ -143,6 +155,8 @@ object WikiResult:
     * lecture “Manipulating Validated Values”.
     */
   def traverse[A, B](as: Seq[A])(f: A => WikiResult[B])(using ExecutionContext): WikiResult[Seq[B]] =
-    ???
+    as.map(f).foldLeft(WikiResult.successful[Seq[B]](Seq.empty[B]))((accumulator, current) => {
+      accumulator.zip(current.map(Seq(_))).map(e => e._1 ++ e._2)
+    })
 
 end WikiResult
