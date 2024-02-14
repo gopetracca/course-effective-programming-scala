@@ -3,6 +3,8 @@
 .bsp
 .metals
 project/metals.sbt
+**/*/project/project
+metals.sbt
 
 # vs code
 .vscode
@@ -29,7 +31,7 @@ bin/
 *.iml
 *.ipr
 *.iws
-.idea
+**.idea
 
 # mac
 .DS_Store
